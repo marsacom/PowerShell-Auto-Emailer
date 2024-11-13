@@ -9,6 +9,8 @@ $global:tenant = ""
 $mode = "PROD" #Change from DEV to PROD
 $company = "YOUR-COMPANY-NAME" #Your company name here
 
+$db = ""
+$server = ""
 $serverDEV = "YOUR-DEV-SERVER"
 $dbDEV = "YOUR-DEV-DATABASE"
 $serverPROD = "YOUR-PROD-SERVER"
@@ -302,20 +304,23 @@ $htmlMsg = @"
 </html>
 "@
 
+If ($mode -eq "DEV"){
+    $server = $serverDEV
+    $db = $dbDEV
+}else{
+    $server = $serverPROD
+    $db = $dbPROD
+}
+
 Function ConnectToSQL{
-    If($mode -eq "DEV"){
-        Invoke-Sqlcmd -TrustServerCertificate -ServerInstance $serverDEV -Database $dbDEV -Username $user -Password $pass 
-        Write-Output "Connecting to SQL - DEV : $serverDEV.$dbDEV"
-    }else{
-        Invoke-Sqlcmd -ServerInstance $serverPROD -Database $dbPROD -Username $user -Password $pass -TrustServerCertificate
-        Write-Output "Connecting to SQL - PROD : $serverPROD.$dbPROD"
-    }
+    Invoke-Sqlcmd -TrustServerCertificate -ServerInstance $server -Database $db -Username $user -Password $pass 
+    Write-Output "Connecting to SQL Server/DB : $server.$db..."
 }
 
 Function GetAPIInfo {
     ConnectToSQL
     $query = "SELECT TokenName, TokenValue FROM APITokens WHERE TokenName LIKE 'VerifyBackup%';"
-    $result = Invoke-Sqlcmd -TrustServerCertificate -Query $query -ServerInstance $serverDEV -Database $dbDEV
+    $result = Invoke-Sqlcmd -TrustServerCertificate -Query $query -ServerInstance $server -Database $db
 
     if ($result[0][0] -eq "VerifyBackupClientID") {
         $global:client_id = $result[0][1]
