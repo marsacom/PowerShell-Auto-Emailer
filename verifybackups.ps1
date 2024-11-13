@@ -7,6 +7,7 @@ $global:bearer = ""
 $global:tenant = ""
 
 $mode = "PROD" #Change from DEV to PROD
+$company = "YOUR-COMPANY-NAME" #Your company name here
 
 $serverDEV = "YOUR-DEV-SERVER"
 $dbDEV = "YOUR-DEV-DATABASE"
@@ -21,108 +22,6 @@ $pass = $Env:VERIFY_BACKUP_PASS
 $msgSender = "YOUR-EMAIL-SENDER"
 $msgRecipient = "YOUR-EMAIL-RECIPIENT"
 $msgCC = "YOUR-EMAIL-CC"
-
-Function ConnectToSQL{
-    If($mode -eq "DEV"){
-        Invoke-Sqlcmd -TrustServerCertificate -ServerInstance $serverDEV -Database $dbDEV -Username $user -Password $pass 
-        Write-Output "Connecting to SQL - DEV : $serverDEV.$dbDEV"
-    }else{
-        Invoke-Sqlcmd -ServerInstance $serverPROD -Database $dbPROD -Username $user -Password $pass -TrustServerCertificate
-        Write-Output "Connecting to SQL - PROD : $serverPROD.$dbPROD"
-    }
-}
-
-Function GetAPIInfo {
-    ConnectToSQL
-    $query = "SELECT TokenName, TokenValue FROM APITokens WHERE TokenName LIKE 'VerifyBackup%';"
-    $result = Invoke-Sqlcmd -TrustServerCertificate -Query $query -ServerInstance $serverDEV -Database $dbDEV
-
-    if ($result[0][0] -eq "VerifyBackupClientID") {
-        $global:client_id = $result[0][1]
-        Write-Output "Client ID : $client_id"
-    }else{
-        Write-Output "ERROR: Unable to get Client ID..."
-    }
-    if ($result[1][0] -eq "VerifyBackupClientSecret") {
-        $global:client_secret = $result[1][1]
-        Write-Output "Client Secret : $client_secret"
-    }else{
-        Write-Output "ERROR: Unable to get Client Secret..."
-    }
-    if ($result[2][0] -eq "VerifyBackupTenantID") {
-        $global:tenant = $result[2][1]
-        Write-Output "Tenant ID : $tenant"
-    }else{
-        Write-Output "ERROR: Unable to get Tenant ID..."
-    }
-}
-
-Function Get-Token {
-    GetAPIInfo
-    $url = "https://login.microsoftonline.com/$tenant/oauth2/v2.0/token"
-
-    $body = @{
-        client_id = $client_id
-        scope = "https://graph.microsoft.com/.default"
-        client_secret = $client_secret
-        grant_type = "client_credentials"
-    }
-
-    $response = Invoke-WebRequest -Method POST -Uri $url -ContentType "application/x-www-form-urlencoded" -Body $body -UseBasicParsing
-
-    $global:bearer = ($response.Content | ConvertFrom-Json).access_token
-    return $bearer
-}
-
-Function Send-Messsage {
-    Get-Token
-    $url = "https://graph.microsoft.com/v1.0/users/$msgSender/sendMail"
-
-    $headers = @{
-        'Content-Type' = "application\json"
-        'Authorization' = "Bearer $bearer" 
-    }
-
-    $email = @{
-        message = @{
-            subject = "AUTO : Verify Backup Status"
-            body = @{
-                contentType = "HTML"
-                content = $htmlMsg#"This is an automated email on behalf of Adevity to remind tecnicians to verify ALL backup services are running for support customers..."
-            }
-            toRecipients = @(
-                @{
-                    emailAddress = @{
-                        address = $msgRecipient
-                    }
-                }
-            )
-            ccRecipients = @(
-                @{
-                    emailAddress = @{
-                        address = $msgCC
-                    }
-                }
-            )
-            from = @{
-                emailAddress = @{
-                    address = $msgSender
-                }
-            }
-        }
-    }
-
-    $emailJSON = $email  | ConvertTo-Json -Depth 100
-    Invoke-RestMethod -Uri $url -Method POST -Headers $headers -Body $emailJSON -ContentType "application/json"
-}
-
-#Main
-try {
-    Send-Messsage
-    Write-Output "Email sent to $msgRecipient successfully"
-}catch{
-    Write-Output "Failed to send email to $msgRecipient"
-}
 
 #HTML to be sent to the recipients
 $htmlMsg = @" 
@@ -402,3 +301,105 @@ $htmlMsg = @"
 </body>
 </html>
 "@
+
+Function ConnectToSQL{
+    If($mode -eq "DEV"){
+        Invoke-Sqlcmd -TrustServerCertificate -ServerInstance $serverDEV -Database $dbDEV -Username $user -Password $pass 
+        Write-Output "Connecting to SQL - DEV : $serverDEV.$dbDEV"
+    }else{
+        Invoke-Sqlcmd -ServerInstance $serverPROD -Database $dbPROD -Username $user -Password $pass -TrustServerCertificate
+        Write-Output "Connecting to SQL - PROD : $serverPROD.$dbPROD"
+    }
+}
+
+Function GetAPIInfo {
+    ConnectToSQL
+    $query = "SELECT TokenName, TokenValue FROM APITokens WHERE TokenName LIKE 'VerifyBackup%';"
+    $result = Invoke-Sqlcmd -TrustServerCertificate -Query $query -ServerInstance $serverDEV -Database $dbDEV
+
+    if ($result[0][0] -eq "VerifyBackupClientID") {
+        $global:client_id = $result[0][1]
+        Write-Output "Client ID : $client_id"
+    }else{
+        Write-Output "ERROR: Unable to get Client ID..."
+    }
+    if ($result[1][0] -eq "VerifyBackupClientSecret") {
+        $global:client_secret = $result[1][1]
+        Write-Output "Client Secret : $client_secret"
+    }else{
+        Write-Output "ERROR: Unable to get Client Secret..."
+    }
+    if ($result[2][0] -eq "VerifyBackupTenantID") {
+        $global:tenant = $result[2][1]
+        Write-Output "Tenant ID : $tenant"
+    }else{
+        Write-Output "ERROR: Unable to get Tenant ID..."
+    }
+}
+
+Function Get-Token {
+    GetAPIInfo
+    $url = "https://login.microsoftonline.com/$tenant/oauth2/v2.0/token"
+
+    $body = @{
+        client_id = $client_id
+        scope = "https://graph.microsoft.com/.default"
+        client_secret = $client_secret
+        grant_type = "client_credentials"
+    }
+
+    $response = Invoke-WebRequest -Method POST -Uri $url -ContentType "application/x-www-form-urlencoded" -Body $body -UseBasicParsing
+
+    $global:bearer = ($response.Content | ConvertFrom-Json).access_token
+    return $bearer
+}
+
+Function Send-Messsage {
+    Get-Token
+    $url = "https://graph.microsoft.com/v1.0/users/$msgSender/sendMail"
+
+    $headers = @{
+        'Content-Type' = "application\json"
+        'Authorization' = "Bearer $bearer" 
+    }
+
+    $email = @{
+        message = @{
+            subject = "AUTO : Verify Backup Status"
+            body = @{
+                contentType = "HTML"
+                content = $htmlMsg#"This is an automated email on behalf of Adevity to remind tecnicians to verify ALL backup services are running for support customers..."
+            }
+            toRecipients = @(
+                @{
+                    emailAddress = @{
+                        address = $msgRecipient
+                    }
+                }
+            )
+            ccRecipients = @(
+                @{
+                    emailAddress = @{
+                        address = $msgCC
+                    }
+                }
+            )
+            from = @{
+                emailAddress = @{
+                    address = $msgSender
+                }
+            }
+        }
+    }
+
+    $emailJSON = $email  | ConvertTo-Json -Depth 100
+    Invoke-RestMethod -Uri $url -Method POST -Headers $headers -Body $emailJSON -ContentType "application/json"
+}
+
+#Main
+try {
+    Send-Messsage
+    Write-Output "Email sent to $msgRecipient successfully"
+}catch{
+    Write-Output "Failed to send email to $msgRecipient"
+}
