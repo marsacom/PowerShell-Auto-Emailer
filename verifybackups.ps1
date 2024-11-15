@@ -25,6 +25,20 @@ $msgSender = "YOUR-EMAIL-SENDER"
 $msgRecipient = "YOUR-EMAIL-RECIPIENT"
 $msgCC = "YOUR-EMAIL-CC"
 
+#Depending on what day it is, Tuesday or Friday we are going to send a different message so set the corresponding vars to their respective values
+If (((Get-Date).DayOfWeek) -eq "Tuesday") {
+    $global:customer = "YOUR-CUSTOMER"
+    $global:service1 = ""
+    $global:service2 = ""
+    $global:service3 = ""
+}else{
+    $global:customer = ""
+    $global:service1 = ""
+    $global:service2 = ""
+    $global:service3 = ""
+}
+
+
 #HTML to be sent to the recipients
 $htmlMsg = @" 
 <!DOCTYPE html>
@@ -231,18 +245,18 @@ $htmlMsg = @"
                        </div>
                        <div><span>&#xFEFF;</span>
                        </div>
-                       <div><span>Please ensure that all backups are up and running for all support customers.</span>
+                       <div><span>Please ensure that all backups are up and running for $customer.</span>
                        </div>
                        <div><span>﻿</span>
                        </div>
                        <div><span style="font-weight: 700;font-style: normal;line-height: 250%;">Backup Services:</span>
                        </div>
                        <ol style="margin: 0; padding: 0 0 0 20px; list-style: arabic;">
-                        <li><span style="font-weight: 700;font-style: normal;">Veeam</span>
+                        <li><span style="font-weight: 700;font-style: normal;">$service1</span>
                         </li>
-                        <li><span style="font-weight: 700;font-style: normal;">CrashPlan</span>
+                        <li><span style="font-weight: 700;font-style: normal;">$service2</span>
                         </li>
-                        <li><span style="font-weight: 700;font-style: normal;">Code42</span>
+                        <li><span style="font-weight: 700;font-style: normal;">$service3</span>
                         </li>
                        </ol>
                       </div>
