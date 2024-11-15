@@ -17,7 +17,7 @@ Step 1. ``git clone https://github.com/marsacom/NinjaOneToolKit.git``
 
 Step 2. ``Install-Module -Name SqlServer``
 
-Step 3. ``Modify variables on lines 11-23 in verifybackups.ps1``
+Step 3. ``Modify variables as needed in verifybackups.ps1``
 
 ## Usage
 
