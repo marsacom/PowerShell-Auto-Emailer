@@ -25,6 +25,9 @@ $msgSender = "YOUR-EMAIL-SENDER"
 $msgRecipient = "YOUR-EMAIL-RECIPIENT"
 $msgCC = "YOUR-EMAIL-CC"
 
+#Path to the log file you wish to use
+$log
+
 #Depending on what day it is, Tuesday or Friday we are going to send a different message so set the corresponding vars to their respective values
 If (((Get-Date).DayOfWeek) -eq "Tuesday") {
     $global:customer = "YOUR-CUSTOMER"
@@ -327,92 +330,116 @@ If ($mode -eq "DEV"){
 }
 
 Function ConnectToSQL{
-    Invoke-Sqlcmd -TrustServerCertificate -ServerInstance $server -Database $db -Username $user -Password $pass 
-    Write-Output "Connecting to SQL Server/DB : $server.$db..."
+    try {
+        Invoke-Sqlcmd -TrustServerCertificate -ServerInstance $server -Database $db -Username $user -Password $pass 
+        Write-Output "Connecting to SQL Server/DB : $server.$db..."
+    } catch {
+        $err = $_.Exception.Message
+        $ts = Get-Date -Format "yyyy-MM-dd HH:mm:ss"    
+        Add-Content -Path $log -Value "$ts - ERROR: $err`n"
+    }
 }
 
 Function GetAPIInfo {
     ConnectToSQL
-    $query = "SELECT TokenName, TokenValue FROM APITokens WHERE TokenName LIKE 'VerifyBackup%';"
-    $result = Invoke-Sqlcmd -TrustServerCertificate -Query $query -ServerInstance $server -Database $db
+    try {
+        $query = "SELECT TokenName, TokenValue FROM APITokens WHERE TokenName LIKE 'VerifyBackup%';"
+        $result = Invoke-Sqlcmd -TrustServerCertificate -Query $query -ServerInstance $server -Database $db
 
-    if ($result[0][0] -eq "VerifyBackupClientID") {
-        $global:client_id = $result[0][1]
-        Write-Output "Client ID : $client_id"
-    }else{
-        Write-Output "ERROR: Unable to get Client ID..."
-    }
-    if ($result[1][0] -eq "VerifyBackupClientSecret") {
-        $global:client_secret = $result[1][1]
-        Write-Output "Client Secret : $client_secret"
-    }else{
-        Write-Output "ERROR: Unable to get Client Secret..."
-    }
-    if ($result[2][0] -eq "VerifyBackupTenantID") {
-        $global:tenant = $result[2][1]
-        Write-Output "Tenant ID : $tenant"
-    }else{
-        Write-Output "ERROR: Unable to get Tenant ID..."
+        if ($result[0][0] -eq "VerifyBackupClientID") {
+            $global:client_id = $result[0][1]
+            Write-Output "Client ID : $client_id"
+        }else{
+            Write-Output "ERROR: Unable to get Client ID..."
+        }
+        if ($result[1][0] -eq "VerifyBackupClientSecret") {
+            $global:client_secret = $result[1][1]
+            Write-Output "Client Secret : $client_secret"
+        }else{
+            Write-Output "ERROR: Unable to get Client Secret..."
+        }
+        if ($result[2][0] -eq "VerifyBackupTenantID") {
+            $global:tenant = $result[2][1]
+            Write-Output "Tenant ID : $tenant"
+        }else{
+            Write-Output "ERROR: Unable to get Tenant ID..."
+        }
+    } catch {
+        $err = $_.Exception.Message
+        $ts = Get-Date -Format "yyyy-MM-dd HH:mm:ss"    
+        Add-Content -Path $log -Value "$ts - ERROR: $err`n"
     }
 }
 
 Function Get-Token {
     GetAPIInfo
-    $url = "https://login.microsoftonline.com/$tenant/oauth2/v2.0/token"
+    try {
+        $url = "https://login.microsoftonline.com/$tenant/oauth2/v2.0/token"
 
-    $body = @{
-        client_id = $client_id
-        scope = "https://graph.microsoft.com/.default"
-        client_secret = $client_secret
-        grant_type = "client_credentials"
+        $body = @{
+            client_id = $client_id
+            scope = "https://graph.microsoft.com/.default"
+            client_secret = $client_secret
+            grant_type = "client_credentials"
+        }
+
+        $response = Invoke-WebRequest -Method POST -Uri $url -ContentType "application/x-www-form-urlencoded" -Body $body -UseBasicParsing
+
+        $global:bearer = ($response.Content | ConvertFrom-Json).access_token
+        return $bearer
+    } catch {
+        $err = $_.Exception.Message
+        $ts = Get-Date -Format "yyyy-MM-dd HH:mm:ss"    
+        Add-Content -Path $log -Value "$ts - ERROR: $err`n"
     }
-
-    $response = Invoke-WebRequest -Method POST -Uri $url -ContentType "application/x-www-form-urlencoded" -Body $body -UseBasicParsing
-
-    $global:bearer = ($response.Content | ConvertFrom-Json).access_token
-    return $bearer
 }
 
 Function Send-Messsage {
     Get-Token
-    $url = "https://graph.microsoft.com/v1.0/users/$msgSender/sendMail"
+    try {
+        $url = "https://graph.microsoft.com/v1.0/users/$msgSender/sendMail"
 
-    $headers = @{
-        'Content-Type' = "application\json"
-        'Authorization' = "Bearer $bearer" 
-    }
+        $headers = @{
+            'Content-Type' = "application\json"
+            'Authorization' = "Bearer $bearer" 
+        }
 
-    $email = @{
-        message = @{
-            subject = "AUTO : Verify Backup Status"
-            body = @{
-                contentType = "HTML"
-                content = $htmlMsg#"This is an automated email on behalf of Adevity to remind tecnicians to verify ALL backup services are running for support customers..."
-            }
-            toRecipients = @(
-                @{
-                    emailAddress = @{
-                        address = $msgRecipient
-                    }
+        $email = @{
+            message = @{
+                subject = "AUTO : Verify Backup Status"
+                body = @{
+                    contentType = "HTML"
+                    content = $htmlMsg#"This is an automated email on behalf of Adevity to remind tecnicians to verify ALL backup services are running for support customers..."
                 }
-            )
-            ccRecipients = @(
-                @{
-                    emailAddress = @{
-                        address = $msgCC
+                toRecipients = @(
+                    @{
+                        emailAddress = @{
+                            address = $msgRecipient
+                        }
                     }
-                }
-            )
-            from = @{
-                emailAddress = @{
-                    address = $msgSender
+                )
+                ccRecipients = @(
+                    @{
+                        emailAddress = @{
+                            address = $msgCC
+                        }
+                    }
+                )
+                from = @{
+                    emailAddress = @{
+                        address = $msgSender
+                    }
                 }
             }
         }
-    }
 
-    $emailJSON = $email  | ConvertTo-Json -Depth 100
-    Invoke-RestMethod -Uri $url -Method POST -Headers $headers -Body $emailJSON -ContentType "application/json"
+        $emailJSON = $email  | ConvertTo-Json -Depth 100
+        Invoke-RestMethod -Uri $url -Method POST -Headers $headers -Body $emailJSON -ContentType "application/json"
+    } catch {
+        $err = $_.Exception.Message
+        $ts = Get-Date -Format "yyyy-MM-dd HH:mm:ss"    
+        Add-Content -Path $log -Value "$ts - ERROR: $err`n"
+    }
 }
 
 #Main
