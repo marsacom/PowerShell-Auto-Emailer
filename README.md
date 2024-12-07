@@ -15,7 +15,7 @@ If you need assistance setting up your application please refer to the following
 
 Step 1. ``git clone https://github.com/marsacom/NinjaOneToolKit.git``
 
-Step 2. ``Install-Module -Name SqlServer``
+Step 2. ``Install-Module -Name dbatools``
 
 Step 3. ``Modify variables as needed in verifybackups.ps1``
 

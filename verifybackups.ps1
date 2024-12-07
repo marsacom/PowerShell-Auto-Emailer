@@ -1,4 +1,4 @@
-Import-Module SqlServer #Connect to backend SQL server for API info
+Import-Module dbatools #Connect to backend SQL server for API info
 
 #Global vars for auth info we will need
 $global:client_id = ""
@@ -25,8 +25,11 @@ $msgSender = "YOUR-EMAIL-SENDER"
 $msgRecipient = "YOUR-EMAIL-RECIPIENT"
 $msgCC = "YOUR-EMAIL-CC"
 
+#Create an object we can use for passing credentials to dbatools when connecting to SQL
+$credentials = Get-Credential -Credential (New-Object System.Management.Automation.PSCredential($user, ((ConvertTo-SecureString $pass -AsPlainText -Force))))
+
 #Path to the log file you wish to use
-$log
+$log = "YOUR-LOG-PATH"
 
 #Depending on what day it is, Tuesday or Friday we are going to send a different message so set the corresponding vars to their respective values
 If (((Get-Date).DayOfWeek) -eq "Tuesday") {
@@ -331,7 +334,7 @@ If ($mode -eq "DEV"){
 
 Function ConnectToSQL{
     try {
-        Invoke-Sqlcmd -TrustServerCertificate -ServerInstance $server -Database $db -Username $user -Password $pass 
+        Connect-DbaInstance -SqlInstance $server -Database $db -TrustServerCertificate -SqlCredential $credentials
         Write-Output "Connecting to SQL Server/DB : $server.$db..."
     } catch {
         $err = $_.Exception.Message
@@ -343,31 +346,31 @@ Function ConnectToSQL{
 Function GetAPIInfo {
     ConnectToSQL
     try {
-        $query = "SELECT TokenName, TokenValue FROM APITokens WHERE TokenName LIKE 'VerifyBackup%';"
-        $result = Invoke-Sqlcmd -TrustServerCertificate -Query $query -ServerInstance $server -Database $db
-
-        if ($result[0][0] -eq "VerifyBackupClientID") {
-            $global:client_id = $result[0][1]
-            Write-Output "Client ID : $client_id"
-        }else{
-            Write-Output "ERROR: Unable to get Client ID..."
-        }
-        if ($result[1][0] -eq "VerifyBackupClientSecret") {
-            $global:client_secret = $result[1][1]
-            Write-Output "Client Secret : $client_secret"
-        }else{
-            Write-Output "ERROR: Unable to get Client Secret..."
-        }
-        if ($result[2][0] -eq "VerifyBackupTenantID") {
-            $global:tenant = $result[2][1]
-            Write-Output "Tenant ID : $tenant"
-        }else{
-            Write-Output "ERROR: Unable to get Tenant ID..."
-        }
+        $query = "SELECT TokenName, TokenValue FROM APITokens WHERE LEFT(TokenName, 12) = 'VerifyBackup'"
+        $result = Invoke-DbaQuery -SqlInstance $server -Database $db -Query $query -SqlCredential $credentials
     } catch {
         $err = $_.Exception.Message
         $ts = Get-Date -Format "yyyy-MM-dd HH:mm:ss"    
         Add-Content -Path $log -Value "$ts - ERROR: $err`n"
+    }
+
+    if ($result[0][0] -eq "VerifyBackupClientID") {
+        $global:client_id = $result[0][1]
+        Write-Output "Client ID : $client_id"
+    }else{
+        Write-Output "ERROR: Unable to get Client ID..."
+    }
+    if ($result[1][0] -eq "VerifyBackupClientSecret") {
+        $global:client_secret = $result[1][1]
+        Write-Output "Client Secret : $client_secret"
+    }else{
+        Write-Output "ERROR: Unable to get Client Secret..."
+    }
+    if ($result[2][0] -eq "VerifyBackupTenantID") {
+        $global:tenant = $result[2][1]
+        Write-Output "Tenant ID : $tenant"
+    }else{
+        Write-Output "ERROR: Unable to get Tenant ID..."
     }
 }
 
