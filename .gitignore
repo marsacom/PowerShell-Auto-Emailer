@@ -1,0 +1,6 @@
+#Ignore log files
+verifybackuplog.txt
+
+#Ignore all scripts except the main
+!verifybackups.ps1
+verifybackups*
