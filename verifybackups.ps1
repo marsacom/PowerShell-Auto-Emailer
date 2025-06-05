@@ -85,8 +85,6 @@ $htmlMsg = @"
 "@
 
 Function GetAPIInfo {
-    Write-Host $Env:VERIFY_BACKUP_USER
-    Write-Host $Env:VERIFY_BACKUP_PASS
     try {        
         $keys = @("", "", "") 
         foreach ($key in $keys) {
